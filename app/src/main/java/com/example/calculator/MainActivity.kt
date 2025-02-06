@@ -3,6 +3,7 @@ package com.example.calculator
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -15,8 +16,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.calculator.ui.theme.CalculatorTheme
 import com.example.calculator.viewmodels.CalculatorViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
 
@@ -24,6 +28,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        installSplashScreen()
+
+        enableEdgeToEdge()
+
         setContent {
             CalculatorTheme {
                 Scaffold(modifier = Modifier.fillMaxSize().background(Color.Black)) { innerPadding ->
@@ -39,59 +48,78 @@ fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewMod
     val input = viewModel.getStringExpression()
     val result = viewModel.getEvaluated()
 
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black),
-        verticalArrangement = Arrangement.SpaceBetween,
-        horizontalAlignment = Alignment.End
+            .background(Color.Black)
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
+        val isPortrait = maxWidth < maxHeight
 
-        Text(
-            text = input,
-            style = TextStyle(fontSize = 34.sp, color = Color(0xFFE8E8E8)),
-            modifier = Modifier.padding(8.dp)
-        )
-
-        Text(
-            text = result,
-            style = TextStyle(fontSize = 24.sp, color = Color.DarkGray),
-            modifier = Modifier.padding(8.dp)
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        IconButton(
-            onClick = { viewModel.updateExpression("⌫") },
-            modifier = Modifier
-                .padding(end = 16.dp)
-                .size(32.dp)
+        Column(
+            modifier = modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.End
         ) {
+            if(isPortrait)
+            {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             Text(
-                text = "⌫",
-                style = TextStyle(fontSize = 20.sp, color = Color.DarkGray)
+                text = input,
+                style = TextStyle(fontSize = 34.sp, color = Color(0xFFE8E8E8)),
+                modifier = Modifier.padding(
+                    start = 8.dp,
+                    end = 8.dp,
+                    top = if (isPortrait) 8.dp else 0.dp,
+                    bottom = 8.dp,
+                )
+            )
+
+            if(isPortrait)
+            {
+                Text(
+                    text = result,
+                    style = TextStyle(fontSize = 24.sp, color = Color.DarkGray),
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            IconButton(
+                onClick = { viewModel.updateExpression("⌫") },
+                modifier = Modifier
+                    .padding(end = 16.dp)
+                    .size(32.dp)
+            ) {
+                Text(
+                    text = "⌫",
+                    style = TextStyle(fontSize = 20.sp, color = Color.DarkGray)
+                )
+            }
+
+            HorizontalDivider(
+                color = Color.DarkGray,
+                thickness = 1.dp,
+                modifier = Modifier
+                    .fillMaxWidth(0.95f)
+                    .align(Alignment.CenterHorizontally)
+            )
+
+            CalculatorButtons(
+                onButtonClick = { button ->
+                    viewModel.updateExpression(button)
+                },
+                isPortrait = isPortrait
             )
         }
-
-        HorizontalDivider(
-            color = Color.DarkGray,
-            thickness = 1.dp,
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .align(Alignment.CenterHorizontally)
-        )
-
-        CalculatorButtons(
-            onButtonClick = { button ->
-                viewModel.updateExpression(button)
-            }
-        )
     }
 }
 
+
 @Composable
-fun CalculatorButtons(onButtonClick: (String) -> Unit) {
+fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
     val buttons = listOf(
         listOf("C", "(", ")", "÷"),
         listOf("7", "8", "9", "×"),
@@ -100,23 +128,67 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit) {
         listOf("%", "0", ".", "=")
     )
 
-    Column {
-        buttons.forEach { row ->
-            Row(
+    val extraButtons = listOf("√", "sin", "cos", "tan", "cot")
+
+    if (isPortrait) {
+        Column {
+            buttons.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    row.forEach { button ->
+                        CalculatorButton(
+                            label = button,
+                            onClick = { onButtonClick(button) }
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxHeight(),
+            horizontalArrangement = Arrangement.Start,
+        ) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.97f),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                    .fillMaxHeight()
+                    .padding(start = 64.dp),
+                verticalArrangement = Arrangement.Center
             ) {
-                row.forEach { button ->
+                extraButtons.forEach { button ->
                     CalculatorButton(
                         label = button,
                         onClick = { onButtonClick(button) }
                     )
                 }
             }
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                buttons.forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        row.forEach { button ->
+                            CalculatorButton(
+                                label = button,
+                                onClick = { onButtonClick(button) }
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
+
+
 
 @Composable
 fun CalculatorButton(
@@ -160,3 +232,4 @@ fun CalculatorButton(
         }
     }
 }
+
