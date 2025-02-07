@@ -14,13 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.calculator.ui.theme.CalculatorTheme
 import com.example.calculator.viewmodels.CalculatorViewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
 
@@ -128,7 +128,12 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
         listOf("%", "0", ".", "=")
     )
 
-    val extraButtons = listOf("√", "sin", "cos", "tan", "cot")
+    val extraButtons = listOf("sqrt", "sin", "cos", "tan", "cot")
+
+    val buttonWidth = 80.dp
+    val buttonHeight = if (isPortrait) 80.dp else 40.dp
+    val fontSize = if (isPortrait) 28.sp else 16.sp
+
 
     if (isPortrait) {
         Column {
@@ -140,7 +145,10 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
                     row.forEach { button ->
                         CalculatorButton(
                             label = button,
-                            onClick = { onButtonClick(button) }
+                            onClick = { onButtonClick(button) },
+                            buttonWidth = buttonWidth,
+                            buttonHeight = buttonHeight,
+                            fontSize = fontSize
                         )
                     }
                 }
@@ -160,7 +168,10 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
                 extraButtons.forEach { button ->
                     CalculatorButton(
                         label = button,
-                        onClick = { onButtonClick(button) }
+                        onClick = { onButtonClick(button) },
+                        buttonWidth = buttonWidth,
+                        buttonHeight = buttonHeight,
+                        fontSize = fontSize
                     )
                 }
             }
@@ -168,7 +179,7 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 buttons.forEach { row ->
                     Row(
@@ -178,7 +189,10 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
                         row.forEach { button ->
                             CalculatorButton(
                                 label = button,
-                                onClick = { onButtonClick(button) }
+                                onClick = { onButtonClick(button) },
+                                buttonWidth = buttonWidth,
+                                buttonHeight = buttonHeight,
+                                fontSize = fontSize
                             )
                         }
                     }
@@ -188,32 +202,29 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
     }
 }
 
-
-
 @Composable
 fun CalculatorButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    buttonWidth: Dp,
+    buttonHeight: Dp,
+    fontSize: TextUnit
 ) {
-    val (fontSize, backgroundColor, textColor) = when (label) {
-        "⌫" -> Triple(28.sp, Color(0xFF131313), Color(0xFFE8E8E8))
-        "=" -> Triple(40.sp, Color(0xFF676767), Color(0xFFE8E8E8))
-        "C" -> Triple(28.sp, Color(0xFF131313), Color(0xFFB71C1C))
-        "÷" -> Triple(34.sp, Color(0xFF131313), Color(0xFFE8E8E8))
-        "×" -> Triple(34.sp, Color(0xFF131313), Color(0xFFE8E8E8))
-        "–" -> Triple(34.sp, Color(0xFF131313), Color(0xFFE8E8E8))
-        else -> Triple(28.sp, Color(0xFF131313), Color(0xFFE8E8E8))
+    val (backgroundColor, textColor) = when (label) {
+        "⌫" -> Color(0xFF131313) to Color(0xFFE8E8E8)
+        "=" -> Color(0xFF676767) to Color(0xFFE8E8E8)
+        "C" -> Color(0xFF131313) to Color(0xFFB71C1C)
+        "÷", "×", "–", "+" -> Color(0xFF131313) to Color(0xFFE8E8E8)
+        else -> Color(0xFF131313) to Color(0xFFE8E8E8)
     }
-
-    val buttonWidth = 80.dp
 
     Button(
         onClick = onClick,
         modifier = modifier
             .padding(4.dp)
             .width(buttonWidth)
-            .height(80.dp),
+            .height(buttonHeight),
         colors = ButtonDefaults.buttonColors(
             containerColor = backgroundColor,
             contentColor = textColor
@@ -232,4 +243,5 @@ fun CalculatorButton(
         }
     }
 }
+
 
