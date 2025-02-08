@@ -1,14 +1,17 @@
 package com.example.calculator.viewmodels
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
 
 class CalculatorViewModel : ViewModel() {
 
-    private var currentExpression by mutableStateOf("0")
-    private var currentResult by mutableStateOf("0")
+    var currentExpression by mutableStateOf("0")
+        private set
+    var currentResult by mutableStateOf("0")
+        private set
+    var toastMessage by mutableStateOf<String?>(null)
+        private set
+
     private var isCurrentExpressionSaved = false
 
     fun getStringExpression(): String {
@@ -16,8 +19,9 @@ class CalculatorViewModel : ViewModel() {
     }
 
     fun getEvaluated(): String {
-        if(currentResult.endsWith(".0"))
-            currentResult.dropLast(2)
+        if (currentResult.endsWith(".0"))
+            currentResult = currentResult.dropLast(2)
+
         return when (currentResult) {
             "Infinity" -> "∞"
             "NaN" -> "Error"
@@ -28,22 +32,14 @@ class CalculatorViewModel : ViewModel() {
     fun updateExpression(symbol: String) {
         when (symbol) {
             "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-            "sin", "cos", "tan", "cot", "sqrt", "(", ")", "." -> {
+            "sin", "cos", "tan", "cot", "sqrt", "(", ")", ".", "π" -> {
                 isCurrentExpressionSaved = false
                 addDigit(symbol)
             }
-            "C" -> {
-                clearExpression()
-            }
+            "C" -> clearExpression()
             "⌫" -> clearLastSymbolOfExpression()
-            "×", "–", "÷", "+" -> {
-                addDigit(symbol)
-            }
-            "=" -> {
-                if (currentResult != "Error") {
-                    currentExpression = currentResult
-                }
-            }
+            "×", "–", "÷", "+" -> addDigit(symbol)
+            "=" -> if (currentResult != "Error") currentExpression = currentResult
         }
 
         try {
@@ -54,12 +50,30 @@ class CalculatorViewModel : ViewModel() {
     }
 
     private fun addDigit(symbol: String) {
-        if (currentExpression == "0") {
+        val lastNumber = currentExpression.split(Regex("[+\\-×÷()]")).lastOrNull() ?: ""
+
+        if (symbol in "0123456789") {
+            if (lastNumber.length >= 15) {
+                showToast("Невозможно ввести более 15 цифр в одном числе")
+                return
+            }
+        }
+
+        if (symbol == ".") {
+            val parts = lastNumber.split(".")
+            if (parts.size > 1 && parts[1].length >= 10) {
+                showToast("Максимум 10 цифр после запятой")
+                return
+            }
+        }
+
+        if (currentExpression == "0" && symbol != ".") {
             currentExpression = symbol
         } else {
             currentExpression += symbol
         }
     }
+
 
     private fun clearExpression() {
         currentExpression = "0"
@@ -79,6 +93,7 @@ class CalculatorViewModel : ViewModel() {
             .replace("tan", "Math.tan")
             .replace("cot", "cot")
             .replace("sqrt", "Math.sqrt")
+            .replace("π", "Math.PI")
             .replace("–", "-")
             .replace("×", "*")
             .replace("÷", "/")
@@ -109,5 +124,13 @@ class CalculatorViewModel : ViewModel() {
         } finally {
             org.mozilla.javascript.Context.exit()
         }
+    }
+
+    private fun showToast(message: String) {
+        toastMessage = message
+    }
+
+    fun clearToast() {
+        toastMessage = null
     }
 }

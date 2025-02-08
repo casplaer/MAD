@@ -21,6 +21,18 @@ import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.calculator.ui.theme.CalculatorTheme
 import com.example.calculator.viewmodels.CalculatorViewModel
+import android.content.Context
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.widget.Toast
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+
 
 class MainActivity : ComponentActivity() {
 
@@ -35,18 +47,59 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             CalculatorTheme {
-                Scaffold(modifier = Modifier.fillMaxSize().background(Color.Black)) { innerPadding ->
-                    CalculatorScreen(modifier = Modifier.padding(innerPadding), viewModel = calculatorViewModel)
+                Scaffold(modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black))
+                { innerPadding ->
+                    CalculatorScreen(
+                        modifier = Modifier.padding(innerPadding),
+                        viewModel = calculatorViewModel,
+                        onButtonClick = { button ->
+                            vibrate()
+                            calculatorViewModel.updateExpression(button)
+                        })
                 }
             }
+        }
+    }
+
+    private fun vibrate() {
+        val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(50)
         }
     }
 }
 
 @Composable
-fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewModel) {
+fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewModel, onButtonClick: (String) -> Unit) {
     val input = viewModel.getStringExpression()
     val result = viewModel.getEvaluated()
+
+    val context = LocalContext.current
+    var currentToast: Toast? by remember { mutableStateOf(null) }
+
+    val toastMessage = viewModel.toastMessage
+
+    LaunchedEffect(toastMessage) {
+        toastMessage?.let {
+            currentToast?.cancel()
+            currentToast = Toast.makeText(context, it, Toast.LENGTH_SHORT).also { toast ->
+                toast.show()
+            }
+            viewModel.clearToast()
+        }
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -60,24 +113,17 @@ fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewMod
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.End
         ) {
-            if(isPortrait)
-            {
+            if (isPortrait) {
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
             Text(
                 text = input,
                 style = TextStyle(fontSize = 34.sp, color = Color(0xFFE8E8E8)),
-                modifier = Modifier.padding(
-                    start = 8.dp,
-                    end = 8.dp,
-                    top = if (isPortrait) 8.dp else 0.dp,
-                    bottom = 8.dp,
-                )
+                modifier = Modifier.padding(8.dp)
             )
 
-            if(isPortrait)
-            {
+            if (isPortrait) {
                 Text(
                     text = result,
                     style = TextStyle(fontSize = 24.sp, color = Color.DarkGray),
@@ -88,7 +134,7 @@ fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewMod
             Spacer(modifier = Modifier.height(32.dp))
 
             IconButton(
-                onClick = { viewModel.updateExpression("⌫") },
+                onClick = { onButtonClick("⌫") },
                 modifier = Modifier
                     .padding(end = 16.dp)
                     .size(32.dp)
@@ -108,14 +154,13 @@ fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewMod
             )
 
             CalculatorButtons(
-                onButtonClick = { button ->
-                    viewModel.updateExpression(button)
-                },
+                onButtonClick = onButtonClick,
                 isPortrait = isPortrait
             )
         }
     }
 }
+
 
 
 @Composable
@@ -125,7 +170,7 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
         listOf("7", "8", "9", "×"),
         listOf("4", "5", "6", "–"),
         listOf("1", "2", "3", "+"),
-        listOf("%", "0", ".", "=")
+        listOf("π", "0", ".", "=")
     )
 
     val extraButtons = listOf("sqrt", "sin", "cos", "tan", "cot")
