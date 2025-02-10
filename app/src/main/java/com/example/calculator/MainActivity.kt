@@ -1,5 +1,8 @@
 package com.example.calculator
 
+import HistoryViewModel
+import PassKeyManager
+import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,34 +25,88 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.calculator.ui.theme.CalculatorTheme
 import com.example.calculator.viewmodels.CalculatorViewModel
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.widget.Toast
+import androidx.annotation.RequiresApi
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
-
+import androidx.compose.ui.res.painterResource
+import com.example.calculator.services.NotificationService
+import com.example.calculator.viewmodels.CalculatorTheme
+import com.example.calculator.viewmodels.CalculatorViewModelFactory
+import com.example.calculator.viewmodels.ThemeViewModel
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
-    private val calculatorViewModel: CalculatorViewModel by viewModels()
+    private val historyViewModel: HistoryViewModel by viewModels()
+    private val calculatorViewModel: CalculatorViewModel by viewModels {
+        CalculatorViewModelFactory(historyViewModel)
+    }
+    private val themeViewModel: ThemeViewModel by viewModels()
 
+    private val passKeyManager = PassKeyManager(this)
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (!passKeyManager.isPassKeyInitialized()) {
+            lifecycleScope.launch {
+                val newPassKey = passKeyManager.generateNewPassKey()
+                Toast.makeText(this@MainActivity, "New Pass Key Created", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(this, "Pass Key already initialized", Toast.LENGTH_SHORT).show()
+        }
+
+        val selectedExpression = intent.getStringExtra("selected_expression") ?: ""
+
+        val notificationService = NotificationService()
+
+        themeViewModel.loadSelectedTheme(this)
+
+        if (selectedExpression.isNotEmpty()) {
+            calculatorViewModel.updateExpression(selectedExpression)
+        }
 
         installSplashScreen()
 
         enableEdgeToEdge()
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissions(arrayOf(
+                Manifest.permission.POST_NOTIFICATIONS,
+                Manifest.permission.SCHEDULE_EXACT_ALARM,
+                Manifest.permission.USE_EXACT_ALARM),
+                1)
+        }
+
         setContent {
+            val currentTheme = themeViewModel.currentTheme
+
+            changeStatusBarColor(stringToColor(currentTheme.backgroundColor))
+
             CalculatorTheme {
-                Scaffold(modifier = Modifier
+                notificationService.scheduleNotificationSet(applicationContext)
+                Scaffold(
+                    modifier = Modifier
                                     .fillMaxSize()
-                                    .background(Color.Black))
+                )
                 { innerPadding ->
                     CalculatorScreen(
                         modifier = Modifier.padding(innerPadding),
@@ -57,10 +114,19 @@ class MainActivity : ComponentActivity() {
                         onButtonClick = { button ->
                             vibrate()
                             calculatorViewModel.updateExpression(button)
-                        })
+                        },
+                        currentTheme = currentTheme)
                 }
             }
         }
+    }
+
+    private fun changeStatusBarColor(color: Color) {
+        val window = window
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+
+        controller.isAppearanceLightStatusBars = false
+        window.statusBarColor = color.toArgb()
     }
 
     private fun vibrate() {
@@ -82,7 +148,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewModel, onButtonClick: (String) -> Unit) {
+fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewModel, onButtonClick: (String) -> Unit, currentTheme: CalculatorTheme) {
     val input = viewModel.getStringExpression()
     val result = viewModel.getEvaluated()
 
@@ -104,7 +170,7 @@ fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewMod
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(stringToColor(currentTheme.backgroundColor))
     ) {
         val isPortrait = maxWidth < maxHeight
 
@@ -119,34 +185,68 @@ fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewMod
 
             Text(
                 text = input,
-                style = TextStyle(fontSize = 34.sp, color = Color(0xFFE8E8E8)),
+                style = TextStyle(fontSize = 34.sp, color = stringToColor(currentTheme.buttonTextColor)),
                 modifier = Modifier.padding(8.dp)
             )
 
             if (isPortrait) {
                 Text(
                     text = result,
-                    style = TextStyle(fontSize = 24.sp, color = Color.DarkGray),
+                    style = TextStyle(fontSize = 24.sp, color = stringToColor(currentTheme.additionalTextColor)),
                     modifier = Modifier.padding(8.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            var blankSpace = 16.dp
+            if(isPortrait) blankSpace = 32.dp
 
-            IconButton(
-                onClick = { onButtonClick("⌫") },
+            Spacer(modifier = Modifier.height(blankSpace))
+
+            Row(
                 modifier = Modifier
-                    .padding(end = 16.dp)
-                    .size(32.dp)
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "⌫",
-                    style = TextStyle(fontSize = 20.sp, color = Color.DarkGray)
-                )
+                IconButton(onClick = {
+                    val intent = Intent(context, HistoryActivity::class.java)
+                    context.startActivity(intent)
+                }) {
+                    Image(
+                        painter = painterResource(id = R.drawable.history),
+                        contentDescription = "History",
+                        modifier = Modifier.size(24.dp),
+                        colorFilter = ColorFilter.tint(stringToColor(currentTheme.additionalTextColor))
+                    )
+                }
+
+                IconButton(onClick = {
+                    val intent = Intent(context, ThemeSettingsActivity::class.java)
+                    context.startActivity(intent)
+                }) {
+                    Image(
+                        painter = painterResource(id = R.drawable.settings),
+                        contentDescription = "History",
+                        modifier = Modifier.size(24.dp),
+                        colorFilter = ColorFilter.tint(stringToColor(currentTheme.additionalTextColor))
+                    )
+                }
+
+                IconButton(
+                    onClick = { onButtonClick("⌫") },
+                    modifier = Modifier
+                        .size(32.dp)
+                ) {
+                    Text(
+                        text = "⌫",
+                        style = TextStyle(fontSize = 20.sp, color = stringToColor(currentTheme.additionalTextColor))
+                    )
+                }
             }
 
             HorizontalDivider(
-                color = Color.DarkGray,
+                color = stringToColor(currentTheme.additionalTextColor),
                 thickness = 1.dp,
                 modifier = Modifier
                     .fillMaxWidth(0.95f)
@@ -155,7 +255,8 @@ fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewMod
 
             CalculatorButtons(
                 onButtonClick = onButtonClick,
-                isPortrait = isPortrait
+                isPortrait = isPortrait,
+                currentTheme = currentTheme
             )
         }
     }
@@ -164,7 +265,7 @@ fun CalculatorScreen(modifier: Modifier = Modifier, viewModel: CalculatorViewMod
 
 
 @Composable
-fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
+fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean, currentTheme: CalculatorTheme) {
     val buttons = listOf(
         listOf("C", "(", ")", "÷"),
         listOf("7", "8", "9", "×"),
@@ -193,7 +294,8 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
                             onClick = { onButtonClick(button) },
                             buttonWidth = buttonWidth,
                             buttonHeight = buttonHeight,
-                            fontSize = fontSize
+                            fontSize = fontSize,
+                            currentTheme = currentTheme
                         )
                     }
                 }
@@ -216,7 +318,8 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
                         onClick = { onButtonClick(button) },
                         buttonWidth = buttonWidth,
                         buttonHeight = buttonHeight,
-                        fontSize = fontSize
+                        fontSize = fontSize,
+                        currentTheme = currentTheme
                     )
                 }
             }
@@ -237,7 +340,8 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit, isPortrait: Boolean) {
                                 onClick = { onButtonClick(button) },
                                 buttonWidth = buttonWidth,
                                 buttonHeight = buttonHeight,
-                                fontSize = fontSize
+                                fontSize = fontSize,
+                                currentTheme = currentTheme
                             )
                         }
                     }
@@ -254,14 +358,15 @@ fun CalculatorButton(
     modifier: Modifier = Modifier,
     buttonWidth: Dp,
     buttonHeight: Dp,
-    fontSize: TextUnit
+    fontSize: TextUnit,
+    currentTheme: CalculatorTheme
 ) {
     val (backgroundColor, textColor) = when (label) {
-        "⌫" -> Color(0xFF131313) to Color(0xFFE8E8E8)
-        "=" -> Color(0xFF676767) to Color(0xFFE8E8E8)
-        "C" -> Color(0xFF131313) to Color(0xFFB71C1C)
-        "÷", "×", "–", "+" -> Color(0xFF131313) to Color(0xFFE8E8E8)
-        else -> Color(0xFF131313) to Color(0xFFE8E8E8)
+        "⌫" -> stringToColor(currentTheme.buttonBackgroundColor) to stringToColor(currentTheme.buttonTextColor)
+        "=" -> stringToColor(currentTheme.equalsButtonBackgroundColor) to stringToColor(currentTheme.buttonTextColor)
+        "C" -> stringToColor(currentTheme.buttonBackgroundColor) to stringToColor(currentTheme.clearButtonTextColor)
+        "÷", "×", "–", "+" -> stringToColor(currentTheme.buttonBackgroundColor) to stringToColor(currentTheme.buttonTextColor)
+        else -> stringToColor(currentTheme.buttonBackgroundColor) to stringToColor(currentTheme.buttonTextColor)
     }
 
     Button(
@@ -289,4 +394,26 @@ fun CalculatorButton(
     }
 }
 
-
+fun stringToColor(colorString: String): Color {
+    return if (colorString.startsWith("#")) {
+        val colorHex = colorString.removePrefix("#")
+        if (colorHex.length == 6) {
+            Color(
+                red = Integer.valueOf(colorHex.substring(0, 2), 16) / 255f,
+                green = Integer.valueOf(colorHex.substring(2, 4), 16) / 255f,
+                blue = Integer.valueOf(colorHex.substring(4, 6), 16) / 255f
+            )
+        } else if (colorHex.length == 8) {
+            Color(
+                alpha = Integer.valueOf(colorHex.substring(0, 2), 16) / 255f,
+                red = Integer.valueOf(colorHex.substring(2, 4), 16) / 255f,
+                green = Integer.valueOf(colorHex.substring(4, 6), 16) / 255f,
+                blue = Integer.valueOf(colorHex.substring(6, 8), 16) / 255f
+            )
+        } else {
+            Color.Black
+        }
+    } else {
+        Color.Black
+    }
+}

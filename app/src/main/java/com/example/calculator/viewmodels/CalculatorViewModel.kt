@@ -1,9 +1,10 @@
 package com.example.calculator.viewmodels
 
+import HistoryViewModel
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
 
-class CalculatorViewModel : ViewModel() {
+class CalculatorViewModel(private val historyViewModel: HistoryViewModel) : ViewModel() {
 
     var currentExpression by mutableStateOf("0")
         private set
@@ -12,7 +13,7 @@ class CalculatorViewModel : ViewModel() {
     var toastMessage by mutableStateOf<String?>(null)
         private set
 
-    private var isCurrentExpressionSaved = false
+    private var isSaved = false
 
     fun getStringExpression(): String {
         return currentExpression
@@ -33,13 +34,25 @@ class CalculatorViewModel : ViewModel() {
         when (symbol) {
             "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
             "sin", "cos", "tan", "cot", "sqrt", "(", ")", ".", "π" -> {
-                isCurrentExpressionSaved = false
+                isSaved = false
                 addDigit(symbol)
             }
             "C" -> clearExpression()
             "⌫" -> clearLastSymbolOfExpression()
             "×", "–", "÷", "+" -> addDigit(symbol)
-            "=" -> if (currentResult != "Error") currentExpression = currentResult
+            "=" -> {
+                if (!isSaved) {
+                    historyViewModel.saveHistoryToFirebase(currentExpression)
+                    isSaved = true
+                }
+
+                if (currentResult != "Error") {
+                    currentExpression = currentResult
+                }
+            }
+            else ->{
+                currentExpression = symbol
+            }
         }
 
         try {
@@ -80,14 +93,27 @@ class CalculatorViewModel : ViewModel() {
     }
 
     private fun clearLastSymbolOfExpression() {
-        currentExpression = currentExpression.dropLast(1)
+        val commandList = listOf("sin", "cos", "tan", "cot", "sqrt")
+        val lastCommand = commandList.find { currentExpression.endsWith(it) }
+
+        if (lastCommand != null) {
+            currentExpression = currentExpression.dropLast(lastCommand.length)
+        } else {
+            currentExpression = currentExpression.dropLast(1)
+        }
+
         if (currentExpression.isEmpty()) {
             currentExpression = "0"
         }
     }
 
+
     private fun prepareForEvaluation(raw: String): String {
-        return raw
+        var expression = raw
+
+        expression = expression.replace(Regex("([0-9)])(\\(|sin|cos|tg|ctg|sqrt)"), "$1*$2")
+
+        return expression
             .replace("sin", "Math.sin")
             .replace("cos", "Math.cos")
             .replace("tan", "Math.tan")
@@ -99,6 +125,7 @@ class CalculatorViewModel : ViewModel() {
             .replace("÷", "/")
             .replace("+", "+")
     }
+
 
     private fun evaluateExpression() {
         val context = org.mozilla.javascript.Context.enter()
