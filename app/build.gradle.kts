@@ -53,6 +53,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.firebase.database.ktx)
     implementation(libs.firebase.messaging)
+    implementation(libs.androidx.appcompat)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -62,4 +63,5 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
     implementation("org.mozilla:rhino:1.7.14")
     implementation ("androidx.core:core-splashscreen:1.0.1")
+    implementation("androidx.biometric:biometric:1.1.0")
 }

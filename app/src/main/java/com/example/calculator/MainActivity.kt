@@ -1,7 +1,6 @@
 package com.example.calculator
 
 import HistoryViewModel
-import PassKeyManager
 import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -47,8 +46,6 @@ import com.example.calculator.viewmodels.CalculatorViewModelFactory
 import com.example.calculator.viewmodels.ThemeViewModel
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -58,21 +55,10 @@ class MainActivity : ComponentActivity() {
     }
     private val themeViewModel: ThemeViewModel by viewModels()
 
-    private val passKeyManager = PassKeyManager(this)
-
     @OptIn(ExperimentalMaterial3Api::class)
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        if (!passKeyManager.isPassKeyInitialized()) {
-            lifecycleScope.launch {
-                val newPassKey = passKeyManager.generateNewPassKey()
-                Toast.makeText(this@MainActivity, "New Pass Key Created", Toast.LENGTH_SHORT).show()
-            }
-        } else {
-            Toast.makeText(this, "Pass Key already initialized", Toast.LENGTH_SHORT).show()
-        }
 
         val selectedExpression = intent.getStringExtra("selected_expression") ?: ""
 
