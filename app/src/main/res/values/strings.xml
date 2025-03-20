@@ -3,4 +3,5 @@
     <string name="title_activity_history">HistoryActivity</string>
     <string name="title_activity_theme_settings">ThemeSettingsActivity</string>
     <string name="title_activity_pass_key">PassKeyActivity</string>
+    <string name="title_activity_sign_in">SignInActivity</string>
 </resources>

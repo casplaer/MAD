@@ -45,7 +45,6 @@ class NotificationReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .build()
 
-        // Show the notification
         notificationManager.notify(Random(1).nextInt(), notification)
         notificationService.scheduleNotificationSet(context)
     }

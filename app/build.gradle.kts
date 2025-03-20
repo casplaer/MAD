@@ -64,4 +64,5 @@ dependencies {
     implementation("org.mozilla:rhino:1.7.14")
     implementation ("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.credentials:credentials:1.5.0")
 }
